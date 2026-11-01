@@ -1,0 +1,141 @@
+{
+  "dataset_info": {
+    "name": "IBM Telco Customer Churn",
+    "source": "https://github.com/IBM/telco-customer-churn-on-icp4d",
+    "n_records": 7032,
+    "n_features": 21,
+    "churn_rate": 0.2658,
+    "n_churned": 1869,
+    "n_retained": 5163,
+    "description": "Реальный публичный датасет IBM с данными о клиентах телеком-компании (7 032 после очистки)."
+  },
+  "model_cv_metrics": {
+    "algorithm": "XGBoost (XGBClassifier)",
+    "cv_folds": 5,
+    "roc_auc_mean": 0.8402,
+    "roc_auc_std": 0.0037,
+    "accuracy_mean": 0.7585,
+    "accuracy_std": 0.008,
+    "recall_mean": 0.7592,
+    "precision_mean": 0.5323,
+    "f1_mean": 0.6257
+  },
+  "test_set_metrics": {
+    "test_size": 1407,
+    "roc_auc": 0.825,
+    "accuracy": 0.7335,
+    "recall": 0.746,
+    "precision": 0.4991,
+    "f1": 0.5981
+  },
+  "feature_importance_top7": [
+    {
+      "name": "ContractMonths",
+      "value": 0.0591
+    },
+    {
+      "name": "tenure",
+      "value": 0.0429
+    },
+    {
+      "name": "InternetService",
+      "value": 0.0155
+    },
+    {
+      "name": "AvgMonthlyCharges",
+      "value": 0.008
+    },
+    {
+      "name": "OnlineSecurity",
+      "value": 0.0072
+    },
+    {
+      "name": "TechSupport",
+      "value": 0.0045
+    },
+    {
+      "name": "TotalCharges",
+      "value": 0.0041
+    }
+  ],
+  "segment_churn_rates": {
+    "Contract": {
+      "Month-to-month": {
+        "churn_rate": 0.4270967741935484,
+        "n": 3875
+      },
+      "One year": {
+        "churn_rate": 0.11277173913043478,
+        "n": 1472
+      },
+      "Two year": {
+        "churn_rate": 0.028486646884272996,
+        "n": 1685
+      }
+    },
+    "InternetService": {
+      "Fiber optic": {
+        "churn_rate": 0.4189276485788114,
+        "n": 3096
+      },
+      "DSL": {
+        "churn_rate": 0.18998344370860928,
+        "n": 2416
+      },
+      "No": {
+        "churn_rate": 0.07434210526315789,
+        "n": 1520
+      }
+    },
+    "PaymentMethod": {
+      "Electronic check": {
+        "churn_rate": 0.4528541226215645,
+        "n": 2365
+      },
+      "Mailed check": {
+        "churn_rate": 0.19201995012468828,
+        "n": 1604
+      },
+      "Bank transfer (automatic)": {
+        "churn_rate": 0.16731517509727625,
+        "n": 1542
+      },
+      "Credit card (automatic)": {
+        "churn_rate": 0.1525312294543064,
+        "n": 1521
+      }
+    },
+    "PaperlessBilling": {
+      "1": {
+        "churn_rate": 0.33589251439539347,
+        "n": 4168
+      },
+      "0": {
+        "churn_rate": 0.16375698324022347,
+        "n": 2864
+      }
+    }
+  },
+  "tenure_churn": {
+    "0-6m": {
+      "churn_rate": 0.5333333333333333,
+      "n": 1470
+    },
+    "6-12m": {
+      "churn_rate": 0.3588652482269504,
+      "n": 705
+    },
+    "12-24m": {
+      "churn_rate": 0.287109375,
+      "n": 1024
+    },
+    "24-48m": {
+      "churn_rate": 0.2038895859473024,
+      "n": 1594
+    },
+    "48-72m": {
+      "churn_rate": 0.09513175524787852,
+      "n": 2239
+    }
+  }
+}
