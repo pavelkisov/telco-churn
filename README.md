@@ -8,7 +8,7 @@
 - **Источник:** https://github.com/IBM/telco-customer-churn-on-icp4d (публичный, без API-ключа Kaggle)
 - **Размер:** 7 043 сырых записи × 21 признак
 - **После очистки:** 7 032 записи (удалены 11 строк с пустым `TotalCharges`)
-- **Целевая переменная:** `Churn` (Yes/No — ушёл клиент или остался)
+- **Целевая переменная:** `Churn` (Yes/No — ушёл клиент или остался), доля оттока 26.6%
 
 ## Что считается
 
@@ -23,20 +23,35 @@
 
 | Метрика | Значение |
 |---|---|
-| ROC-AUC (CV mean, 5-fold) | **0.8402** ± std |
-| ROC-AUC (test, hold-out 20%) | **0.825** |
+| ROC-AUC (CV mean, 5-fold) | **0.8402** ± 0.0037 (округлённо **0.84**) |
+| ROC-AUC (test, hold-out 20%) | **0.825** (округлённо **0.83**) |
 | Accuracy (test) | 0.73 |
 | Recall (churn=Yes, test) | 0.75 |
 | Baseline: Logistic Regression (CV) | 0.8449 |
 | Baseline: Random Forest (CV) | 0.8252 |
 
+Числа в скобках — то же значение в двух знаках, как оно фигурирует на
+сайте-портфолио: **0.84 CV / 0.83 test**.
+
 **Top-3 признака (permutation importance):** `ContractMonths`, `tenure`, `InternetService`
+
+> Замечание про baseline: Logistic Regression (0.8449) сопоставим с XGBoost (0.8402) —
+> на этом датасете линейная модель уже близка к потолку качества, а бустинг выигрывает
+> в основном в recall по классу churn (0.75 на test). Для бизнеса важнее не выжать
+> +0.005 AUC, а поймать больше уходящих клиентов.
 
 Полные результаты — в `results/churn-real-results.json`.
 
-> Метрики получены на версии xgboost из `requirements.txt`. Из-за разницы версий библиотек
-> числа могут незначительно отличаться от более ранних коммитов; это ожидаемо и
-> фиксируется повторным запуском скрипта.
+## Ноутбук с графиками
+
+[`churn_eda.ipynb`](churn_eda.ipynb) — разведочный анализ и сегментация на тех же данных:
+
+- распределение churn (дисбаланс 1:2.7 — почему ROC-AUC, а не accuracy);
+- churn rate по типу контракта: month-to-month **42.7%**, годовой 11.3%, двухлетний 2.8%;
+- churn rate по стажу: первые 6 месяцев **54.7%**, клиенты 4+ лет — 9.6%;
+- fiber-optic 41.9% против 19.0% на DSL; fiber без OnlineSecurity — 49.4%.
+
+Моделирование — в `churn_analysis.py`.
 
 ## Как запустить
 
@@ -44,7 +59,8 @@
 python -m venv .venv
 source .venv/bin/activate    # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-python churn_analysis.py
+python churn_analysis.py     # моделирование
+jupyter notebook churn_eda.ipynb   # EDA (опционально)
 ```
 
 Скрипт читает данные из `data/telco-churn.csv` и сохраняет результаты в `results/churn-real-results.json`
@@ -56,6 +72,7 @@ python churn_analysis.py
 - pandas, numpy
 - scikit-learn (ColumnTransformer, Pipeline, StratifiedKFold, permutation_importance)
 - xgboost
+- matplotlib (ноутбук)
 
 ## Структура
 
@@ -66,6 +83,7 @@ telco-churn/
 ├── LICENSE
 ├── .gitignore
 ├── churn_analysis.py
+├── churn_eda.ipynb                 # EDA-ноутбук с графиками
 ├── .github/workflows/ci.yml        # CI: проверяет, что скрипт запускается
 ├── data/
 │   └── telco-churn.csv             # исходный датасет IBM (970 КБ)
