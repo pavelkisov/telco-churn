@@ -19,10 +19,10 @@
 
 ## Результаты (фактические)
 
-- **ROC-AUC (CV mean):** 0.8402
+- **ROC-AUC (CV mean):** 0.8278
 - **ROC-AUC (test):** 0.825
-- **Accuracy:** 0.79
-- **Recall (churn=Yes):** 0.51
+- **Accuracy:** 0.73
+- **Recall (churn=Yes):** 0.75
 - **Top-3 признака:** Contract (Month-to-month), tenure, OnlineSecurity_No
 
 Полные результаты — в `results/churn-real-results.json`.
