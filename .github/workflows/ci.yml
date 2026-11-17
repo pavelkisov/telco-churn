@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  run-analysis:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run churn analysis
+        run: python churn_analysis.py
+
+      - name: Verify results JSON produced
+        run: |
+          python -c "import json,sys; d=json.load(open('results/churn-real-results.json')); \
+          assert d['model_cv_metrics']['roc_auc_mean'] > 0.7, 'ROC-AUC too low'; \
+          assert d['dataset_info']['n_records_after_cleanup'] == 7032, 'record count mismatch'; \
+          print('OK: churn results valid, ROC-AUC CV =', d['model_cv_metrics']['roc_auc_mean'])"

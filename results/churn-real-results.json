@@ -2,12 +2,14 @@
   "dataset_info": {
     "name": "IBM Telco Customer Churn",
     "source": "https://github.com/IBM/telco-customer-churn-on-icp4d",
-    "n_records": 7032,
+    "n_records_raw": 7043,
+    "n_records_after_cleanup": 7032,
+    "n_dropped_missing_totalcharges": 11,
     "n_features": 21,
     "churn_rate": 0.2658,
     "n_churned": 1869,
     "n_retained": 5163,
-    "description": "Реальный публичный датасет IBM с данными о клиентах телеком-компании (7 032 после очистки)."
+    "description": "Реальный публичный датасет IBM. 7 043 сырых записи, после удаления строк с пустым TotalCharges остаётся 7 032 строки."
   },
   "model_cv_metrics": {
     "algorithm": "XGBoost (XGBClassifier)",
@@ -18,7 +20,13 @@
     "accuracy_std": 0.008,
     "recall_mean": 0.7592,
     "precision_mean": 0.5323,
-    "f1_mean": 0.6257
+    "f1_mean": 0.6257,
+    "scale_pos_weight": 2.7624
+  },
+  "baseline_cv_metrics": {
+    "logistic_regression_roc_auc": 0.8449,
+    "random_forest_roc_auc": 0.8252,
+    "xgboost_roc_auc": 0.8402
   },
   "test_set_metrics": {
     "test_size": 1407,

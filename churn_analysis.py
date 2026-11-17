@@ -1,26 +1,34 @@
 """
-Реальный анализ оттока клиентов на датасете IBM Telco Customer Churn.
-- 7043 записи, 21 признак
+Анализ оттока клиентов на датасете IBM Telco Customer Churn.
+
+- 7 043 записи (сырые) → 7 032 после очистки (удалены строки с пустым TotalCharges)
+- 21 признак
 - XGBoost с stratified 5-fold кросс-валидацией
 - Permutation importance для интерпретации
-- Бизнес-инсайты: churn rate по сегментам
+- Сравнение с baseline (Logistic Regression, Random Forest)
+- Бизнес-инсайты: churn rate по сегментам и когортам tenure
 
 Источник датасета: https://github.com/IBM/telco-customer-churn-on-icp4d
 (публичный датасет IBM, не требует API-ключа Kaggle)
+
+Запуск:
+    python churn_analysis.py
+
+Результаты сохраняются в ./results/churn-real-results.json (рядом со скриптом).
+Пути в скрипте относительные — код запускается из любого каталога после `git clone`.
 """
 
 import json
-import os
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 from sklearn.compose import ColumnTransformer
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.inspection import permutation_importance
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import (
     accuracy_score,
-    classification_report,
     confusion_matrix,
     f1_score,
     precision_score,
@@ -33,21 +41,28 @@ from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from xgboost import XGBClassifier
 
 # ---------------------------------------------------------------------------
+# 0. Пути (относительно location самого скрипта — переносимо)
+# ---------------------------------------------------------------------------
+SCRIPT_DIR = Path(__file__).resolve().parent
+DATA_PATH = SCRIPT_DIR / "data" / "telco-churn.csv"
+RESULTS_DIR = SCRIPT_DIR / "results"
+RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+
+# ---------------------------------------------------------------------------
 # 1. Загрузка и чистка данных
 # ---------------------------------------------------------------------------
-RAW_PATH = Path("/home/z/my-project/data/raw/telco-churn.csv")
-df = pd.read_csv(RAW_PATH)
-print(f"Loaded {len(df)} rows × {len(df.columns)} cols")
+df = pd.read_csv(DATA_PATH)
+print(f"Loaded {len(df)} rows × {len(df.columns)} cols from {DATA_PATH.relative_to(SCRIPT_DIR)}")
 
 # Удаляем customerID — бесполезен для ML
 df = df.drop(columns=["customerID"])
 
 # TotalCharges идёт как строка с пустыми значениями " "
 df["TotalCharges"] = pd.to_numeric(df["TotalCharges"], errors="coerce")
-n_missing = df["TotalCharges"].isna().sum()
+n_missing = int(df["TotalCharges"].isna().sum())
 print(f"Missing TotalCharges: {n_missing}")
 df = df.dropna(subset=["TotalCharges"]).reset_index(drop=True)
-print(f"After cleanup: {len(df)} rows")
+print(f"After cleanup: {len(df)} rows (raw was 7043)")
 
 # Целевая переменная → 0/1
 df["Churn"] = (df["Churn"] == "Yes").astype(int)
@@ -125,7 +140,7 @@ preprocessor = ColumnTransformer(
     ]
 )
 
-# XGBoost с балансировкой классов
+# XGBoost с балансировкой классов (scale_pos_weight = n_negative / n_positive)
 scale_pos_weight = (len(y) - y.sum()) / y.sum()
 xgb = XGBClassifier(
     n_estimators=400,
@@ -157,18 +172,36 @@ print(f"Precision: {cv_precision.mean():.4f} ± {cv_precision.std():.4f}")
 print(f"F1:        {cv_f1.mean():.4f} ± {cv_f1.std():.4f}")
 
 # ---------------------------------------------------------------------------
-# 5. Финальная модель на train/test split для permutation importance
+# 5. Baseline: Logistic Regression и Random Forest (тот же CV для честности)
+# ---------------------------------------------------------------------------
+baseline_pre = ColumnTransformer(
+    transformers=[
+        ("num", StandardScaler(), numeric_cols + binary_cols),
+        ("cat", OneHotEncoder(handle_unknown="ignore", sparse_output=False), categorical_cols),
+    ]
+)
+logreg_pipe = Pipeline([("preprocessor", baseline_pre), ("model", LogisticRegression(max_iter=1000))])
+rf_pipe = Pipeline([("preprocessor", baseline_pre), ("model", RandomForestClassifier(n_estimators=200, random_state=42, n_jobs=-1))])
+
+logreg_auc = cross_val_score(logreg_pipe, X, y, cv=cv, scoring="roc_auc", n_jobs=-1).mean()
+rf_auc = cross_val_score(rf_pipe, X, y, cv=cv, scoring="roc_auc", n_jobs=-1).mean()
+print(f"\n=== Baselines (ROC-AUC CV mean) ===")
+print(f"Logistic Regression: {logreg_auc:.4f}")
+print(f"Random Forest:       {rf_auc:.4f}")
+print(f"XGBoost:             {cv_auc.mean():.4f}")
+
+# ---------------------------------------------------------------------------
+# 6. Финальная модель на train/test split для permutation importance
 # ---------------------------------------------------------------------------
 X_train, X_test, y_train, y_test = train_test_split(
     X, y, test_size=0.2, stratify=y, random_state=42
 )
 pipeline.fit(X_train, y_train)
 
-# ROC-AUC на test
-from sklearn.metrics import roc_auc_score as _auc
+# Метрики на test
 y_pred_proba = pipeline.predict_proba(X_test)[:, 1]
 y_pred = pipeline.predict(X_test)
-test_auc = _auc(y_test, y_pred_proba)
+test_auc = roc_auc_score(y_test, y_pred_proba)
 test_acc = accuracy_score(y_test, y_pred)
 test_recall = recall_score(y_test, y_pred)
 test_precision = precision_score(y_test, y_pred)
@@ -184,10 +217,8 @@ print("\nConfusion matrix (TN, FP, FN, TP):")
 print(confusion_matrix(y_test, y_pred))
 
 # ---------------------------------------------------------------------------
-# 6. Permutation importance (на test set, real feature importance)
+# 7. Permutation importance (на test set, real feature importance)
 # ---------------------------------------------------------------------------
-from sklearn.inspection import permutation_importance
-
 perm = permutation_importance(
     pipeline, X_test, y_test, n_repeats=10, random_state=42, n_jobs=-1, scoring="roc_auc"
 )
@@ -207,7 +238,10 @@ print(imp_df.head(10).to_string(index=False))
 segment_churn = {}
 for col in ["Contract", "InternetService", "PaymentMethod", "PaperlessBilling"]:
     seg = df.groupby(col)["Churn"].agg(["mean", "count"]).sort_values("mean", ascending=False)
-    segment_churn[col] = {idx: {"churn_rate": float(row["mean"]), "n": int(row["count"])} for idx, row in seg.iterrows()}
+    segment_churn[col] = {
+        idx: {"churn_rate": float(row["mean"]), "n": int(row["count"])}
+        for idx, row in seg.iterrows()
+    }
 
 print("\n=== Churn rate by Contract ===")
 for k, v in segment_churn["Contract"].items():
@@ -224,18 +258,23 @@ print("\n=== Churn rate by tenure bucket ===")
 print(tenure_churn)
 
 # ---------------------------------------------------------------------------
-# 7. Сохранение результатов в JSON
+# 8. Сохранение результатов в JSON (в results/ рядом со скриптом)
 # ---------------------------------------------------------------------------
 output = {
     "dataset_info": {
         "name": "IBM Telco Customer Churn",
         "source": "https://github.com/IBM/telco-customer-churn-on-icp4d",
-        "n_records": int(len(df)),
+        "n_records_raw": 7043,
+        "n_records_after_cleanup": int(len(df)),
+        "n_dropped_missing_totalcharges": n_missing,
         "n_features": int(len(feature_cols)),
         "churn_rate": float(round(churn_rate, 4)),
         "n_churned": int(y.sum()),
         "n_retained": int(len(y) - y.sum()),
-        "description": "Реальный публичный датасет IBM с данными о клиентах телеком-компании (7 032 после очистки).",
+        "description": (
+            "Реальный публичный датасет IBM. 7 043 сырых записи, после удаления строк "
+            "с пустым TotalCharges остаётся 7 032 строки."
+        ),
     },
     "model_cv_metrics": {
         "algorithm": "XGBoost (XGBClassifier)",
@@ -247,6 +286,12 @@ output = {
         "recall_mean": float(round(cv_recall.mean(), 4)),
         "precision_mean": float(round(cv_precision.mean(), 4)),
         "f1_mean": float(round(cv_f1.mean(), 4)),
+        "scale_pos_weight": float(round(scale_pos_weight, 4)),
+    },
+    "baseline_cv_metrics": {
+        "logistic_regression_roc_auc": float(round(logreg_auc, 4)),
+        "random_forest_roc_auc": float(round(rf_auc, 4)),
+        "xgboost_roc_auc": float(round(cv_auc.mean(), 4)),
     },
     "test_set_metrics": {
         "test_size": int(len(y_test)),
@@ -257,25 +302,18 @@ output = {
         "f1": float(round(test_f1, 4)),
     },
     "feature_importance_top7": [
-        {
-            "name": str(row["feature"]),
-            "value": float(round(row["importance_mean"], 4)),
-        }
+        {"name": str(row["feature"]), "value": float(round(row["importance_mean"], 4))}
         for _, row in imp_df.head(7).iterrows()
     ],
     "segment_churn_rates": segment_churn,
     "tenure_churn": {
-        str(idx): {
-            "churn_rate": float(row["mean"]),
-            "n": int(row["count"]),
-        }
+        str(idx): {"churn_rate": float(row["mean"]), "n": int(row["count"])}
         for idx, row in tenure_churn.iterrows()
     },
 }
 
-# Сохранить в /home/z/my-project/data/processed/churn-real-results.json
-Path("/home/z/my-project/data/processed").mkdir(parents=True, exist_ok=True)
-with open("/home/z/my-project/data/processed/churn-real-results.json", "w", encoding="utf-8") as f:
+results_path = RESULTS_DIR / "churn-real-results.json"
+with open(results_path, "w", encoding="utf-8") as f:
     json.dump(output, f, indent=2, ensure_ascii=False)
 
-print(f"\n✓ Saved real analysis → /home/z/my-project/data/processed/churn-real-results.json")
+print(f"\n✓ Saved → {results_path.relative_to(SCRIPT_DIR)}")
