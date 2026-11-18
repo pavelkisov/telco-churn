@@ -48,7 +48,7 @@
 
 - распределение churn (дисбаланс 1:2.7 — почему ROC-AUC, а не accuracy);
 - churn rate по типу контракта: month-to-month **42.7%**, годовой 11.3%, двухлетний 2.8%;
-- churn rate по стажу: первые 6 месяцев **54.7%**, клиенты 4+ лет — 9.6%;
+- churn rate по стажу (когорты tenure, как в `results/churn-real-results.json`): 0-6 мес **53.3%**, 6-12 мес 35.9%, 12-24 мес 28.7%, клиенты 4+ лет — **9.5%**;
 - fiber-optic 41.9% против 19.0% на DSL; fiber без OnlineSecurity — 49.4%.
 
 Моделирование — в `churn_analysis.py`.
